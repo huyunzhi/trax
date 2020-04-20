@@ -155,6 +155,31 @@ def minimum(x1, x2):
   return _bin_op(min_or_and, x1, x2)
 
 
+@utils.np_doc(np.clip)
+def clip(a, a_min, a_max):  # pylint: disable=missing-docstring
+  if a_min is None and a_max is None:
+    raise ValueError('Not more than one of `a_min` and `a_max` may be `None`.')
+  if a_min is None:
+    return minimum(a, a_max)
+  elif a_max is None:
+    return maximum(a, a_min)
+  else:
+    a, a_min, a_max = array_creation._promote_dtype(a, a_min, a_max)  # pylint: disable=protected-access
+    def tf_clip_by_value(t, clip_value_min, clip_value_max):  # pylint: disable=missing-docstring
+      # A version of tf.clip_by_value that supports broadcasting all three
+      # arguments
+      sh = tf.broadcast_dynamic_shape(
+          tf.broadcast_dynamic_shape(tf.shape(clip_value_min),
+                                     tf.shape(clip_value_max)),
+          tf.shape(t))
+      t = tf.broadcast_to(t, sh)
+      clip_value_min = tf.broadcast_to(clip_value_min, sh)
+      clip_value_max = tf.broadcast_to(clip_value_max, sh)
+      return tf.clip_by_value(t, clip_value_min, clip_value_max)
+    return utils.tensor_to_ndarray(
+        tf_clip_by_value(a.data, a_min.data, a_max.data))
+
+
 @utils.np_doc(np.matmul)
 def matmul(x1, x2):  # pylint: disable=missing-docstring
   def f(x1, x2):
