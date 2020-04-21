@@ -128,11 +128,6 @@ class RLTrainer:
     if n_epochs_is_total_epochs:
       n_epochs_to_run -= self._epoch
     for _ in range(n_epochs_to_run):
-      self._epoch += 1
-      cur_time = time.time()
-      self.train_epoch()
-      supervised.trainer_lib.log(
-          'RL training took %.2f seconds.' % (time.time() - cur_time))
       cur_time = time.time()
       avg_return = self.task.collect_trajectories(
           self.policy, self._collect_per_epoch, self._epoch)
@@ -142,6 +137,11 @@ class RLTrainer:
           % (self._collect_per_epoch, time.time() - cur_time))
       supervised.trainer_lib.log(
           'Average return in epoch %d was %.2f.' % (self._epoch, avg_return))
+      self._epoch += 1
+      cur_time = time.time()
+      self.train_epoch()
+      supervised.trainer_lib.log(
+          'RL training took %.2f seconds.' % (time.time() - cur_time))
       if self._sw is not None:
         self._sw.scalar('timing/collect', time.time() - cur_time,
                         step=self._epoch)

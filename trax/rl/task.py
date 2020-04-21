@@ -276,13 +276,29 @@ class RLTask:
     self._dm_suite = dm_suite
     self._max_steps = max_steps
     self._gamma = gamma
+    self._initial_trajectories = initial_trajectories
     # TODO(lukaszkaiser): find a better way to pass initial trajectories,
     # whether they are an explicit list, a file, or a number of random ones.
     if isinstance(initial_trajectories, int):
-      initial_trajectories = [self.play(_random_policy(self.action_space))
-                              for _ in range(initial_trajectories)]
-    if isinstance(initial_trajectories, list):
-      initial_trajectories = {0: initial_trajectories}
+      if self._initial_trajectories > 0:
+        initial_trajectories = [
+            self.play(_random_policy(self.action_space))
+            for _ in range(initial_trajectories)
+        ]
+      else:
+        initial_trajectories = [
+            self.play(_random_policy(self.action_space))
+        ]
+
+    if isinstance(initial_trajectories, list) and \
+       isinstance(self._initial_trajectories, int):
+      if self._initial_trajectories > 0:
+        initial_trajectories = {0: initial_trajectories}
+      else:
+        # if saelf._initial_trajectories is set to 0 then we collect one
+        # extra trajectory just for the purpose of initialization of
+        # supervised.Trainer
+        initial_trajectories = {-1: initial_trajectories}
     self._timestep_to_np = timestep_to_np
     # Stored trajectories are indexed by epoch and within each epoch they
     # are stored in the order of generation so we can implement replay buffers.
@@ -292,7 +308,12 @@ class RLTask:
     self._trajectories.update(initial_trajectories)
     # When we repeatedly save, trajectories for many epochs do not change, so
     # we don't need to save them again. This keeps track which are unchanged.
-    self._saved_epochs_unchanged = []
+    if not isinstance(self._initial_trajectories, int) or \
+      self._initial_trajectories > 0:
+      self._saved_epochs_unchanged = []
+    else:
+      # we do not want to save the extra trajectory
+      self._saved_epochs_unchanged = [-1]
 
   @property
   def env(self):
@@ -427,13 +448,17 @@ class RLTask:
 
     while True:
       all_epochs = list(self._trajectories.keys())
+      # we remove the epoch with index -1 if we have choice
+      if len(all_epochs) > 1 and -1 in all_epochs:
+        all_epochs.remove(-1)
       max_epoch = max(all_epochs) + 1
       # Bind the epoch indices to a new name so they can be recalculated every
       # epoch.
       epoch_indices = epochs or all_epochs
-      epoch_indices = [
-          ep % max_epoch for ep in epoch_indices
-      ]  # So -1 means "last".
+      if max_epoch > 0:
+        epoch_indices = [
+            ep % max_epoch for ep in epoch_indices
+        ]  # So -1 means "last".
 
       # Sample an epoch proportionally to number of slices in each epoch.
       if len(epoch_indices) == 1:  # Skip this step if there's just 1 epoch.
